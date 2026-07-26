@@ -53,14 +53,11 @@ struct NoteRecognitionView: View {
             Text("String")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Picker("", selection: stringBinding) {
-                Text("Random").tag(nil as GuitarString?)
-                ForEach(GuitarString.allCases, id: \.self) { s in
-                    Text(s.displayName).tag(s as GuitarString?)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
+            PopUpButtonPicker(
+                selection: stringBinding,
+                items: [nil] + GuitarString.allCases.map(Optional.some),
+                title: { $0?.displayName ?? "Random" }
+            )
         }
     }
 
@@ -75,7 +72,7 @@ struct NoteRecognitionView: View {
     }
 
     private func notePrompt(note: Note) -> some View {
-        Text("Find: \(note.name)")
+        Text("Find: \(model.noteName(note))")
             .font(.system(size: 32, weight: .bold, design: .rounded))
             .foregroundStyle(Color.accentColor)
             .padding(.vertical, 8)

@@ -27,9 +27,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private nonisolated(unsafe) var clickOutsideMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if CommandLine.arguments.contains("--selftest") {
+            SelfTest.run()
+        }
         setupStatusItem()
         setupPopover()
         setupClickOutsideMonitor()
+        setupMenuBarIconHook()
+        observePopoverLayout()
     }
 
     deinit {
@@ -46,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         button.imageScaling = .scaleProportionallyDown
 
         button.image = NSImage(
-            systemSymbolName: "guitars",
+            systemSymbolName: model.menuBarIconName,
             accessibilityDescription: "Chords"
         )
 
@@ -64,6 +69,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         popover.delegate = self
         popover.contentViewController = hostingController
         popover.contentSize = NSSize(width: 320, height: 400)
+
+        hostingController.sizingOptions = []
+    }
+
+    private func fitPopoverSize() {
+        let width = model.popoverSize.width
+        let fitting = hostingController.sizeThatFits(
+            in: NSSize(width: width, height: .greatestFiniteMagnitude)
+        )
+        let newSize = NSSize(width: width, height: max(200, fitting.height))
+        let animates = popover.animates
+        popover.animates = false
+        popover.contentSize = newSize
+        popover.animates = animates
     }
 
     private func setupClickOutsideMonitor() {
@@ -80,6 +99,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             self.model.popoverVisible = false
             self.popover.performClose(event)
+        }
+    }
+
+    private func setupMenuBarIconHook() {
+        model.onMenuBarIconChange = { [weak self] in
+            guard let self else { return }
+            self.statusItem.button?.image = NSImage(
+                systemSymbolName: self.model.menuBarIconName,
+                accessibilityDescription: "Chords"
+            )
+        }
+    }
+
+    private func observePopoverLayout() {
+        withObservationTracking {
+            _ = self.model.popoverSize
+            _ = self.model.showSettings
+        } onChange: {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.fitPopoverSize()
+                self.observePopoverLayout()
+            }
         }
     }
 

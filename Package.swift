@@ -19,10 +19,9 @@ let package = Package(
             dependencies: ["ChordsLib"],
             path: "Sources/Chords"
         ),
-        // .testTarget(
-        //     name: "ChordsTests",
-        //     dependencies: ["ChordsLib"],
-        //     path: "Tests"
-        // )
+        .testTarget(
+            name: "ChordsTests",
+            dependencies: ["ChordsLib"]
+        )
     ]
 )

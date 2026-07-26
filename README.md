@@ -1,6 +1,6 @@
 # Menu Bar Chords
 
-A lightweight, native macOS menu bar app for guitarists to browse chords & scales, practice chord identification, and train note recognition on the fretboard. Zero dependencies. Built with SwiftUI.
+A lightweight, native macOS menu bar app for guitarists to browse chords & scales, practice chord identification, and train note recognition on the fretboard. Only standard tuning is available. Zero dependencies. Built with SwiftUI.
 
 🤖 Built with OpenCode using DeepSeek V4 Pro & Flash.
 
@@ -27,6 +27,9 @@ A lightweight, native macOS menu bar app for guitarists to browse chords & scale
 - Reveal button highlights the correct fret on the fretboard
 - Next Note generates a new random target
 
+- **Audio**: Tap the play button next to any chord to hear it via built-in MIDI synthesis (5 guitar sounds)
+- **Settings**: Menu bar icon, note naming (sharps/flats), popover size, guitar sound, quiz chord filter
+
 **Interface**
 - Popover lives in the menu bar — click the guitars icon to toggle
 - Right-click context menu with About (opens GitHub) and Quit
@@ -49,6 +52,9 @@ swift run
 # Or build a release .app bundle
 scripts/bundle.sh
 open build/Chords.app
+
+# Run built-in data-integrity self-test
+swift run Chords --selftest
 ```
 
 The `.app` bundle is self-contained — copy it to `/Applications` and run it.
@@ -60,12 +66,15 @@ The `.app` bundle is self-contained — copy it to `/Applications` and run it.
 | **Open popover** | Click the guitars icon in your menu bar |
 | **Browse chords** | Select Browse mode, pick Root + Type; use stepper for alternate voicings |
 | **Browse scales** | Toggle Chord/Scale to Scale, pick Root + Type |
-| **Start quiz** | Select Quiz mode — a random chord appears on the fretboard |
+| **Hear a chord** | Tap the play button next to the chord name in Browse mode |
+| **Start quiz** | Select Quiz mode — pick All or Open chords |
+| **Random chord** | A random chord shape appears on the fretboard |
 | **Guess a chord** | Pick Root + Type from the pickers, click Check |
 | **Advance quiz** | Click Next Chord after answering |
 | **Practice notes** | Select Notes mode, choose a string |
 | **Reveal answer** | Click Reveal to see the note highlighted on the fretboard |
 | **Next note** | Click Next Note for a new target |
+| **Open settings** | Click the gear icon at the bottom of the popover |
 | **Quit** | Right-click the menu bar icon → Quit (or `⌘Q`) |
 
 ## Architecture
@@ -75,22 +84,31 @@ The `.app` bundle is self-contained — copy it to `/Applications` and run it.
 │                          ChordsApp (@main)                               │
 │  SwiftUI Settings scene ── AppDelegate owns NSStatusItem + NSPopover     │
 │        │                                                                │
-│        ├── statusItem: NSStatusItem (guitars SF Symbol)                  │
+│        ├── statusItem: NSStatusItem (menuBarIconName SF Symbol)            │
 │        └── popover: NSPopover ── NSHostingController ── ContentView       │
+│  SelfTest: swift run Chords --selftest validates all model data             │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                          AppModel (@Observable)                          │
 │  Central state: selectedMode, browseMode, selectedRoot, chordType, etc.  │
-│  Coordinates: ChordLibrary, ScaleLibrary, QuizState, persistence         │
+│  Coordinates: ChordLibrary, ScaleLibrary, QuizState, persistence,        │
+│               AudioEngine, noteNaming, popoverSize, guitarSound            │
 ├──────────────────────────────────────────────────────────────────────────┤
 │  ContentView ── modePicker <Browse|Quiz|Notes>                           │
+│    ├── SettingsView (gear icon toggle)                                     │
+│    │   ├── iconRow (menu bar icon picker)                                │
+│    │   ├── namingRow (notes: sharps / flats)                            │
+│    │   ├── sizeRow (popover: Compact / Spacious)                        │
+│    │   ├── soundRow (guitar sound: Nylon, Steel, Clean, Overdrive, Dist)│
+│    │   └── quizRow (filter: All / Open only)                            │
 │    ├── BrowseView                                                       │
 │    │   ├── browseModePicker (Chord|Scale)                               │
-│    │   ├── rootPicker + typePicker                                       │
+│    │   ├── rootPicker (PopUpButtonPicker) + typePicker                  │
 │    │   ├── FretboardView (Canvas rendering)                              │
-│    │   └── PositionStepper (multiple voicings)                           │
+│    │   ├── playButton (MIDI chord playback)                              │
+│    │   └── PositionStepper (multiple voicings)                         │
 │    ├── ChordQuizView                                                    │
 │    │   ├── FretboardView (random chord, no name)                         │
-│    │   ├── guessControls (root + type pickers, Check button)             │
+│    │   ├── guessControls (root + type PopUpButtonPickers, Check button) │
 │    │   ├── resultView (Correct!/Nope!)                                  │
 │    │   └── scoreDisplay + Next Chord button                              │
 │    └── NoteRecognitionView                                              │
@@ -113,7 +131,7 @@ flowchart TD
     A --> D{Nut visible?}
     D -->|baseFret == 1| E[Draw nut as thick vertical bar]
     D -->|baseFret > 1| F[Draw standard fret lines]
-    A --> G[Fret number label on first column, e.g. "5fr"]
+    A --> G[Fret number label on first column, e.g. 5fr]
     A --> H[String markers: X = muted, O = open]
     A --> I[Finger dots: filled circles with 1-4 finger numbers]
     A --> J[Barre arcs: curved horizontal line spanning strings]
@@ -149,20 +167,25 @@ Preloaded with open chords (C, A, G, E, D shapes), E-shape and A-shape barre cho
 menu-bar-chords/
 ├── Package.swift              # SPM executable, macOS 14+, strict concurrency
 ├── README.md
+├── CHANGELOG.md
 ├── INTENTION.md               # Detailed design document
 ├── Resources/
 │   ├── Info.plist             # LSUIElement=YES, bundle metadata
 │   └── Chords.entitlements    # Hardened runtime (no sandbox)
 ├── scripts/
-│   └── bundle.sh              # Builds release → assembles Chords.app
+│   ├── bundle.sh              # Builds release → assembles Chords.app
+│   └── test.sh                # Runs XCTests + self-test CLI
 ├── Sources/
 │   ├── Chords/                # Executable — views & app entry
 │   │   ├── ChordsApp.swift    # @main, AppDelegate, NSStatusItem + NSPopover
-│   │   ├── ContentView.swift  # Mode selector + routed content
+│   │   ├── ContentView.swift  # Mode selector + routed content + settings toggle
 │   │   ├── FretboardView.swift # Canvas-based mini fretboard
 │   │   ├── BrowseView.swift   # Chord/scale reference browser
 │   │   ├── ChordQuizView.swift # Chord identification quiz
-│   │   └── NoteRecognitionView.swift # Note finding trainer
+│   │   ├── NoteRecognitionView.swift # Note finding trainer
+│   │   ├── SettingsView.swift # Settings panel (icon, naming, size, sound, quiz filter)
+│   │   ├── PopUpButtonPicker.swift # NSPopUpButton wrapper (fixes macOS 14+ crash)
+│   │   └── SelfTest.swift     # CLI data-integrity self-test runner
 │   └── ChordsLib/             # Library — models & data
 │       └── Models/
 │           ├── AppModel.swift       # @Observable central state, persistence
@@ -171,18 +194,22 @@ menu-bar-chords/
 │           ├── ChordLibrary.swift    # Static chord database (open & barre)
 │           ├── ScaleDefinition.swift # Scale data structures
 │           ├── ScaleLibrary.swift    # Static scale database
-│           └── QuizState.swift       # Quiz scoring, streak logic
-└── Tests/
-    ├── NoteTests.swift
-    ├── ChordLibraryTests.swift
-    └── QuizStateTests.swift
+│           ├── QuizState.swift       # Quiz scoring, streak logic
+│           └── AudioEngine.swift     # AVAudioEngine DLS Synth MIDI playback
+├── Tests/
+│   └── ChordsTests/
+│       ├── AppModelTests.swift
+│       ├── ChordLibraryTests.swift
+│       ├── NoteTests.swift
+│       └── QuizStateTests.swift
+└── .gitignore
 ```
 
 ## Security model
 
 This app is **unsandboxed** with **hardened runtime** and **ad-hoc signed**. It's a local utility with no network access (except opening a URL on "About"), no file I/O, and no sensitive data. The only permission it requires is:
 
-- Audio output (none needed — this is a visual tool)
+- Audio output (uses built-in iOS MIDI synthesis)
 
 Unsandboxed status is required for reliable `NSStatusItem` + `NSPopover` behavior, matching all major macOS menu bar utilities (Bartender, iStat Menus, etc.).
 

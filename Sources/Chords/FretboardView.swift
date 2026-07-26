@@ -31,7 +31,8 @@ struct FretboardView: View {
     private let stringCount = 6
     private let fretCount = 3
     private let leftMargin: CGFloat = 28
-    private var colWidth: CGFloat { (frameWidth - leftMargin) / CGFloat(fretCount) }
+    private let rightMargin: CGFloat = 28
+    private var colWidth: CGFloat { (frameWidth - leftMargin - rightMargin) / CGFloat(fretCount) }
     private let stringSpacing: CGFloat = 16
     private let topMargin: CGFloat = 28
     private let bottomMargin: CGFloat = 22
@@ -52,10 +53,33 @@ struct FretboardView: View {
             drawStringLines(context: &context, baseX: baseX, baseY: baseY, size: size)
             drawFretNumber(context: &context, baseX: baseX, baseY: baseY, size: size)
             drawStringMarkers(context: &context, baseX: baseX, baseY: baseY, size: size)
+            drawStringFretValues(context: &context, baseX: baseX, baseY: baseY, size: size)
             drawBarres(context: &context, baseX: baseX, baseY: baseY, size: size)
             drawFingerDots(context: &context, baseX: baseX, baseY: baseY, size: size)
         }
         .frame(width: frameWidth, height: frameHeight)
+    }
+
+    private func drawStringFretValues(context: inout GraphicsContext, baseX: CGFloat, baseY: CGFloat, size: CGSize) {
+        let x = frameWidth - rightMargin / 2 + 4
+        for string in 0..<stringCount {
+            let fretValue = frets.indices.contains(string) ? frets[string] : nil
+            let y = stringY(string, baseY: baseY)
+            
+            let text: String
+            if let f = fretValue {
+                text = "\(f)"
+            } else {
+                text = "X"
+            }
+            
+            context.draw(
+                Text(text)
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundColor(fretValue == nil ? .red : .primary),
+                at: CGPoint(x: x, y: y)
+            )
+        }
     }
 
     private func stringY(_ index: Int, baseY: CGFloat) -> CGFloat {
@@ -108,17 +132,24 @@ struct FretboardView: View {
     private var baseFmt: Int { baseFret }
 
     private func drawStringMarkers(context: inout GraphicsContext, baseX: CGFloat, baseY: CGFloat, size: CGSize) {
-        let markerY = baseY - 14
+        let x = baseX - 12
         for string in 0..<stringCount {
             let fretValue = frets.indices.contains(string) ? frets[string] : nil
-            let x = columnX(0, baseX: baseX)
+            let y = stringY(string, baseY: baseY)
 
             if fretValue == nil {
                 context.draw(
                     Text("X")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.red),
-                    at: CGPoint(x: x, y: markerY - CGFloat(string) * 0)
+                    at: CGPoint(x: x, y: y)
+                )
+            } else if fretValue == 0 {
+                context.draw(
+                    Text("O")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.primary),
+                    at: CGPoint(x: x, y: y)
                 )
             }
         }

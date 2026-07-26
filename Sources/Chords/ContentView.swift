@@ -14,19 +14,42 @@ struct ContentView: View {
             Divider()
 
             modeContent
-                .frame(maxHeight: .infinity, alignment: .top)
+
+            if model.showSettings {
+                Divider()
+                SettingsView()
+                    .padding(.top, 4)
+            }
+
+            settingsButton
+                .padding(.bottom, model.showSettings ? 0 : 16)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
-        .frame(width: 320)
+        .frame(width: model.popoverSize.width)
     }
 
     private var headerRow: some View {
         HStack {
-            Image(systemName: "guitars")
+            Image(systemName: model.menuBarIconName)
                 .foregroundStyle(Color.accentColor)
             Text("Menu Bar Chords")
                 .font(.headline)
+        }
+    }
+
+    private var settingsButton: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "gearshape")
+                .font(.caption)
+            Text("Settings")
+                .font(.caption)
+        }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            model.showSettings.toggle()
         }
     }
 
@@ -37,6 +60,7 @@ struct ContentView: View {
             }
         }
         .pickerStyle(.segmented)
+        .labelsHidden()
     }
 
     @ViewBuilder

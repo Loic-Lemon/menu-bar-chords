@@ -43,26 +43,22 @@ struct ChordQuizView: View {
                 Text("Root")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Picker("", selection: guessRootBinding) {
-                    ForEach(Note.allCases, id: \.self) { note in
-                        Text(note.name).tag(note as Note?)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
+                PopUpButtonPicker(
+                    selection: guessRootBinding,
+                    items: [nil] + Note.allCases.map(Optional.some),
+                    title: { $0.map { model.noteName($0) } ?? "—" }
+                )
             }
 
             HStack {
                 Text("Type")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Picker("", selection: guessTypeBinding) {
-                    ForEach(ChordType.allCases, id: \.self) { type in
-                        Text(type.displayName).tag(type as ChordType?)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
+                PopUpButtonPicker(
+                    selection: guessTypeBinding,
+                    items: [nil] + ChordType.allCases.map(Optional.some),
+                    title: { $0?.displayName ?? "—" }
+                )
             }
 
             Button("Check") {
@@ -86,7 +82,7 @@ struct ChordQuizView: View {
                     Label("Nope!", systemImage: "xmark.circle.fill")
                         .foregroundStyle(.red)
                         .font(.headline)
-                    Text("That was \(chord.root.name)\(chord.type.symbol)")
+                    Text("That was \(model.noteName(chord.root))\(chord.type.symbol)")
                         .font(.subheadline)
                 }
             }
@@ -116,4 +112,5 @@ struct ChordQuizView: View {
             set: { model.userGuessType = $0 }
         )
     }
+
 }

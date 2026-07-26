@@ -38,13 +38,11 @@ struct BrowseView: View {
             Text("Root")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Picker("", selection: rootBinding) {
-                ForEach(Note.allCases, id: \.self) { note in
-                    Text(note.name).tag(note)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
+            PopUpButtonPicker(
+                selection: rootBinding,
+                items: Note.allCases,
+                title: { model.noteName($0) }
+            )
         }
     }
 
@@ -56,26 +54,22 @@ struct BrowseView: View {
                     Text("Type")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Picker("", selection: chordTypeBinding) {
-                        ForEach(ChordType.allCases, id: \.self) { type in
-                            Text(type.displayName).tag(type)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
+                    PopUpButtonPicker(
+                        selection: chordTypeBinding,
+                        items: ChordType.allCases,
+                        title: { $0.displayName }
+                    )
                 }
             case .scale:
                 HStack {
                     Text("Type")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Picker("", selection: scaleTypeBinding) {
-                        ForEach(ScaleType.allCases, id: \.self) { type in
-                            Text(type.displayName).tag(type)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
+                    PopUpButtonPicker(
+                        selection: scaleTypeBinding,
+                        items: ScaleType.allCases,
+                        title: { $0.displayName }
+                    )
                 }
             }
         }
@@ -104,13 +98,27 @@ struct BrowseView: View {
     }
 
     private var chordNameLabel: some View {
-        if let chord = model.browseChord {
-            Text("\(chord.root.name)\(chord.type.symbol)")
-                .font(.title2.weight(.semibold))
-        } else {
-            Text("—")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.secondary)
+        HStack(alignment: .firstTextBaseline) {
+            if let chord = model.browseChord {
+                Text("\(model.noteName(chord.root))\(chord.type.symbol)")
+                    .font(.title2.weight(.semibold))
+                
+                if model.browseMode == .chord {
+                    Button {
+                        model.playCurrentChord()
+                    } label: {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 4)
+                }
+            } else {
+                Text("—")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
