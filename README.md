@@ -4,6 +4,8 @@ A lightweight, native macOS menu bar app for guitarists to browse chords & scale
 
 🤖 Built with OpenCode using DeepSeek V4 Pro & Flash.
 
+https://github.com/user-attachments/assets/4cde4b0a-702a-4f60-a934-5c899a0e6272
+
 ## Features
 
 **Browse Mode**
