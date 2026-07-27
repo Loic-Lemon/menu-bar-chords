@@ -15,14 +15,23 @@ struct ContentView: View {
 
             modeContent
 
+            if model.showHistory {
+                Divider()
+                SessionHistoryView()
+                    .padding(.top, 4)
+            }
+
             if model.showSettings {
                 Divider()
                 SettingsView()
                     .padding(.top, 4)
             }
 
-            settingsButton
-                .padding(.bottom, model.showSettings ? 0 : 16)
+            HStack(spacing: 12) {
+                settingsButton
+                historyButton
+            }
+            .padding(.bottom, (model.showSettings || model.showHistory) ? 0 : 16)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
@@ -50,6 +59,21 @@ struct ContentView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             model.showSettings.toggle()
+        }
+    }
+
+    private var historyButton: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.caption)
+            Text("History")
+                .font(.caption)
+        }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            model.showHistory.toggle()
         }
     }
 

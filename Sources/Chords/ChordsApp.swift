@@ -116,6 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         withObservationTracking {
             _ = self.model.popoverSize
             _ = self.model.showSettings
+            _ = self.model.showHistory
         } onChange: {
             Task { @MainActor [weak self] in
                 guard let self else { return }

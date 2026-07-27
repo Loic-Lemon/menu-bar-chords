@@ -87,31 +87,51 @@ enum SelfTest {
 
         // QuizState
         var state = QuizState()
-        check("initial correct 0", condition: state.correctCount == 0)
-        check("initial percent 0", condition: state.scorePercent == 0)
-        state.recordCorrect()
-        state.recordCorrect()
-        state.recordCorrect()
-        check("3 correct streak 3 best 3", condition: state.correctCount == 3 && state.currentStreak == 3 && state.bestStreak == 3)
-        state.recordIncorrect()
+        check("initial rootCorrect 0", condition: state.rootCorrectCount == 0)
+        check("initial combinedScore 0", condition: state.combinedScore == 0)
+        state.record(rootCorrect: true, typeCorrect: true)
+        state.record(rootCorrect: true, typeCorrect: true)
+        state.record(rootCorrect: true, typeCorrect: true)
+        check("3 combined correct streak 3 best 3", condition: state.combinedCorrectCount == 3 && state.currentStreak == 3 && state.bestStreak == 3)
+        state.record(rootCorrect: false, typeCorrect: false)
         check("after incorrect streak 0", condition: state.currentStreak == 0)
         check("best streak 3 retained", condition: state.bestStreak == 3)
-        state.recordCorrect()
-        state.recordCorrect()
-        state.recordCorrect()
-        state.recordCorrect()
-        check("4 more correct best 4", condition: state.bestStreak == 4)
+        state.record(rootCorrect: true, typeCorrect: true)
+        state.record(rootCorrect: true, typeCorrect: true)
+        state.record(rootCorrect: true, typeCorrect: true)
+        state.record(rootCorrect: true, typeCorrect: true)
+        check("4 more combined correct best 4", condition: state.bestStreak == 4)
         state.reset()
-        check("reset all zero", condition: state.correctCount == 0 && state.totalCount == 0 && state.currentStreak == 0 && state.bestStreak == 0 && state.lastAnswerCorrect == nil)
+        check("reset all zero", condition: state.rootCorrectCount == 0 && state.rootTotalCount == 0 && state.currentStreak == 0 && state.bestStreak == 0 && state.lastAnswerCombinedCorrect == nil)
 
         // QuizState Codable
         var state2 = QuizState()
-        state2.recordCorrect()
-        state2.recordIncorrect()
+        state2.record(rootCorrect: true, typeCorrect: true)
+        state2.record(rootCorrect: false, typeCorrect: true)
         let data = try! JSONEncoder().encode(state2)
         let decoded = try! JSONDecoder().decode(QuizState.self, from: data)
-        check("quizState Codable correctCount", condition: decoded.correctCount == state2.correctCount)
-        check("quizState Codable totalCount", condition: decoded.totalCount == state2.totalCount)
+        check("quizState Codable rootCorrectCount", condition: decoded.rootCorrectCount == state2.rootCorrectCount)
+        check("quizState Codable rootTotalCount", condition: decoded.rootTotalCount == state2.rootTotalCount)
+        check("quizState Codable typeCorrectCount", condition: decoded.typeCorrectCount == state2.typeCorrectCount)
+        check("quizState Codable combinedCorrectCount", condition: decoded.combinedCorrectCount == state2.combinedCorrectCount)
+
+        // QuizSession
+        var session = QuizSession()
+        check("session initial combined 0", condition: session.combinedTotalCount == 0)
+        check("session initial active", condition: session.isActive == true)
+        session.record(rootCorrect: true, typeCorrect: true)
+        session.record(rootCorrect: true, typeCorrect: false)
+        session.record(rootCorrect: false, typeCorrect: true)
+        check("session root 2/3 type 2/3 combined 1/3", condition: session.rootCorrectCount == 2 && session.rootTotalCount == 3 && session.typeCorrectCount == 2 && session.typeTotalCount == 3 && session.combinedCorrectCount == 1 && session.combinedTotalCount == 3)
+        session.endSession()
+        check("session not active after end", condition: session.isActive == false)
+        check("session duration > 0", condition: session.duration > 0)
+
+        // QuizSession Codable
+        let sessionData = try! JSONEncoder().encode(session)
+        let decodedSession = try! JSONDecoder().decode(QuizSession.self, from: sessionData)
+        check("session Codable rootCorrect", condition: decodedSession.rootCorrectCount == session.rootCorrectCount)
+        check("session Codable combinedTotal", condition: decodedSession.combinedTotalCount == session.combinedTotalCount)
 
         // AppModel persistence round-trip
         let suiteName = UUID().uuidString
@@ -135,13 +155,13 @@ enum SelfTest {
         model.didChangeQuizFilter()
         model.selectedMode = .notes
         model.didChangeMode()
-        model.quizState.recordCorrect()
-        model.quizState.recordCorrect()
-        model.quizState.recordCorrect()
-        model.quizState.recordIncorrect()
-        model.didChangeMenuBarIcon() // triggers save after quizState mutations
+        model.quizState.record(rootCorrect: true, typeCorrect: true)
+        model.quizState.record(rootCorrect: true, typeCorrect: true)
+        model.quizState.record(rootCorrect: true, typeCorrect: true)
+        model.quizState.record(rootCorrect: false, typeCorrect: false)
+        model.didChangeMenuBarIcon()
 
-        let model2 = AppModel(defaults: defaults) // reloads from same defaults
+        let model2 = AppModel(defaults: defaults)
         check("persistence root", condition: model2.selectedRoot == .gSharp)
         check("persistence chordType", condition: model2.selectedChordType == .diminished)
         check("persistence scaleType", condition: model2.selectedScaleType == .blues)
@@ -151,8 +171,25 @@ enum SelfTest {
         check("persistence positionFilter", condition: model2.positionFilter == .fiveTo12)
         check("persistence quizFilter", condition: model2.quizFilter == .openOnly)
         check("persistence mode", condition: model2.selectedMode == .notes)
-        check("persistence quizState correct", condition: model2.quizState.correctCount == 3)
-        check("persistence quizState total", condition: model2.quizState.totalCount == 4)
+        check("persistence quizState combinedCorrect", condition: model2.quizState.combinedCorrectCount == 3)
+        check("persistence quizState combinedTotal", condition: model2.quizState.combinedTotalCount == 4)
+
+        // Session persistence
+        let sessionModel = AppModel(defaults: defaults)
+        sessionModel.startSession()
+        let cMajor = ChordLibrary.chord(root: .c, type: .major)!
+        sessionModel.currentQuizChord = cMajor
+        sessionModel.submitQuizGuess(root: .c, type: .major)
+        sessionModel.submitQuizGuess(root: .c, type: .major)
+        sessionModel.submitQuizGuess(root: .c, type: .minor)
+        sessionModel.endSession()
+
+        let reloadedSessionModel = AppModel(defaults: defaults)
+        check("persistence session count 1", condition: reloadedSessionModel.sessions.count == 1)
+        check("persistence session root 3/3", condition: reloadedSessionModel.sessions[0].rootCorrectCount == 3 && reloadedSessionModel.sessions[0].rootTotalCount == 3)
+        check("persistence session type 2/3", condition: reloadedSessionModel.sessions[0].typeCorrectCount == 2 && reloadedSessionModel.sessions[0].typeTotalCount == 3)
+        check("persistence session combined 2/3", condition: reloadedSessionModel.sessions[0].combinedCorrectCount == 2 && reloadedSessionModel.sessions[0].combinedTotalCount == 3)
+
         defaults.removePersistentDomain(forName: suiteName)
 
         print("[SelfTest] \(passed) passed, \(failed) failed")

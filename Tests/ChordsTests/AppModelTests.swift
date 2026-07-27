@@ -93,14 +93,14 @@ final class AppModelTests: XCTestCase {
     func testPersistenceQuizState() {
         let defaults = makeDefaults()
         let model = AppModel(defaults: defaults)
-        model.quizState.recordCorrect()
-        model.quizState.recordCorrect()
-        model.quizState.recordCorrect()
-        model.quizState.recordIncorrect()
-        model.didChangeMode() // triggers save
+        model.quizState.record(rootCorrect: true, typeCorrect: true)
+        model.quizState.record(rootCorrect: true, typeCorrect: true)
+        model.quizState.record(rootCorrect: true, typeCorrect: true)
+        model.quizState.record(rootCorrect: false, typeCorrect: false)
+        model.didChangeMode()
         let reloaded = AppModel(defaults: defaults)
-        XCTAssertEqual(reloaded.quizState.correctCount, 3)
-        XCTAssertEqual(reloaded.quizState.totalCount, 4)
+        XCTAssertEqual(reloaded.quizState.combinedCorrectCount, 3)
+        XCTAssertEqual(reloaded.quizState.combinedTotalCount, 4)
         XCTAssertEqual(reloaded.quizState.currentStreak, 0)
         XCTAssertEqual(reloaded.quizState.bestStreak, 3)
     }
@@ -135,7 +135,9 @@ final class AppModelTests: XCTestCase {
         XCTAssertTrue(result)
         XCTAssertTrue(model.isQuizAnswered)
         XCTAssertTrue(model.isQuizCorrect)
-        XCTAssertTrue(model.quizState.lastAnswerCorrect!)
+        XCTAssertTrue(model.isQuizRootCorrect)
+        XCTAssertTrue(model.isQuizTypeCorrect)
+        XCTAssertTrue(model.quizState.lastAnswerCombinedCorrect!)
         XCTAssertEqual(model.quizState.currentStreak, 1)
     }
 
@@ -148,8 +150,19 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(result)
         XCTAssertTrue(model.isQuizAnswered)
         XCTAssertFalse(model.isQuizCorrect)
-        XCTAssertFalse(model.quizState.lastAnswerCorrect!)
+        XCTAssertFalse(model.quizState.lastAnswerCombinedCorrect!)
         XCTAssertEqual(model.quizState.currentStreak, 0)
+    }
+
+    func testSubmitQuizGuessRootWrongTypeRight() {
+        let model = AppModel(defaults: makeDefaults())
+        model.generateQuizChord()
+        guard let chord = model.currentQuizChord else { return XCTFail("no chord") }
+        let wrongRoot = Note.allCases.first { $0 != chord.root } ?? .c
+        model.submitQuizGuess(root: wrongRoot, type: chord.type)
+        XCTAssertFalse(model.isQuizRootCorrect)
+        XCTAssertTrue(model.isQuizTypeCorrect)
+        XCTAssertFalse(model.isQuizCorrect)
     }
 
     func testGuessResetOnGenerate() {
@@ -161,6 +174,88 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(model.userGuessRoot)
         XCTAssertNil(model.userGuessType)
         XCTAssertFalse(model.isQuizAnswered)
+        XCTAssertFalse(model.isQuizRootCorrect)
+        XCTAssertFalse(model.isQuizTypeCorrect)
+    }
+
+    // MARK: - Session
+
+    func testStartSession() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startSession()
+        XCTAssertNotNil(model.currentSession)
+        XCTAssertTrue(model.currentSession!.isActive)
+        XCTAssertEqual(model.currentSession!.combinedTotalCount, 0)
+        XCTAssertEqual(model.quizState.combinedTotalCount, 0)
+    }
+
+    func testEndSessionSavesToHistory() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startSession()
+        guard let chord = model.currentQuizChord else { return XCTFail("no chord") }
+        model.submitQuizGuess(root: chord.root, type: chord.type)
+        model.endSession()
+        XCTAssertNil(model.currentSession)
+        XCTAssertEqual(model.sessions.count, 1)
+        XCTAssertEqual(model.sessions[0].combinedCorrectCount, 1)
+    }
+
+    func testEndSessionWithZeroAnswers() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startSession()
+        model.endSession()
+        XCTAssertNil(model.currentSession)
+        XCTAssertEqual(model.sessions.count, 0)
+    }
+
+    func testStartSessionEndsPrevious() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startSession()
+        guard let chord = model.currentQuizChord else { return XCTFail("no chord") }
+        model.submitQuizGuess(root: chord.root, type: chord.type)
+        model.startSession()
+        XCTAssertEqual(model.sessions.count, 1)
+        XCTAssertNotNil(model.currentSession)
+        XCTAssertEqual(model.currentSession!.combinedTotalCount, 0)
+    }
+
+    func testSessionPersistsAcrossReload() {
+        let defaults = makeDefaults()
+        let model = AppModel(defaults: defaults)
+        model.startSession()
+        guard let chord = model.currentQuizChord else { return XCTFail("no chord") }
+        model.submitQuizGuess(root: chord.root, type: chord.type)
+        let reloaded = AppModel(defaults: defaults)
+        XCTAssertNotNil(reloaded.currentSession)
+        XCTAssertEqual(reloaded.currentSession!.rootTotalCount, 1)
+        XCTAssertEqual(reloaded.currentSession!.combinedCorrectCount, 1)
+    }
+
+    func testSessionHistoryPersistsAcrossReload() {
+        let defaults = makeDefaults()
+        let model = AppModel(defaults: defaults)
+        model.startSession()
+        guard let chord = model.currentQuizChord else { return XCTFail("no chord") }
+        model.submitQuizGuess(root: chord.root, type: chord.type)
+        model.endSession()
+        let reloaded = AppModel(defaults: defaults)
+        XCTAssertNil(reloaded.currentSession)
+        XCTAssertEqual(reloaded.sessions.count, 1)
+        XCTAssertEqual(reloaded.sessions[0].combinedCorrectCount, 1)
+    }
+
+    func testMultipleSessionsInHistory() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startSession()
+        guard let chord = model.currentQuizChord else { return XCTFail("no chord") }
+        model.submitQuizGuess(root: chord.root, type: chord.type)
+        model.endSession()
+        model.startSession()
+        guard let chord2 = model.currentQuizChord else { return XCTFail("no chord") }
+        model.submitQuizGuess(root: chord2.root, type: chord2.type)
+        model.endSession()
+        XCTAssertEqual(model.sessions.count, 2)
+        XCTAssertTrue(model.sessions[0].startTime >= model.sessions[1].startTime)
     }
 
     // MARK: - Note Recognition

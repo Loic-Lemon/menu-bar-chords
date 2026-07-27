@@ -188,16 +188,19 @@ struct FretboardView: View {
         for string in 0..<stringCount {
             guard frets.indices.contains(string) else { continue }
             guard let fretValue = frets[string] else { continue }
-            if fretValue == 0 { continue }
+
+            let isHighlighted = highlightString == string && highlightFret == fretValue
 
             let col = fretValue - baseFret
-            guard col >= 0, col < fretCount else { continue }
+            if col < 0 || col >= fretCount {
+                guard isHighlighted, col == -1 else { continue }
+            }
+            if fretValue == 0 && !isHighlighted { continue }
 
-            let cx = columnX(col, baseX: baseX)
+            let cx: CGFloat = col >= 0 ? columnX(col, baseX: baseX) : baseX
             let cy = stringY(string, baseY: baseY)
 
             let isRoot = rootString == string
-            let isHighlighted = highlightString == string && highlightFret == fretValue
 
             let dotColor: Color
             if isHighlighted {

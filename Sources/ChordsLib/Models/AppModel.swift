@@ -140,7 +140,15 @@ public final class AppModel {
     public var userGuessType: ChordType?
     public var isQuizAnswered = false
     public var isQuizCorrect = false
+    public var isQuizRootCorrect = false
+    public var isQuizTypeCorrect = false
     public var quizFilter: ChordQuizFilter = .all
+
+    public var currentSession: QuizSession?
+    public var sessions: [QuizSession] = []
+
+    public var showSettings = false
+    public var showHistory = false
 
     public var selectedString: GuitarString?
     public var positionFilter: NotePositionFilter = .any
@@ -148,7 +156,6 @@ public final class AppModel {
     public var isNoteRevealed = false
     public var noteTargetFret: Int?
 
-    public var showSettings = false
     public var menuBarIconName = "guitars"
     public var noteNaming: NoteNamingScheme = .sharps
     public var popoverSize: PopoverSize = .compact
@@ -214,20 +221,51 @@ public final class AppModel {
         userGuessType = nil
         isQuizAnswered = false
         isQuizCorrect = false
+        isQuizRootCorrect = false
+        isQuizTypeCorrect = false
     }
 
     @discardableResult
     public func submitQuizGuess(root: Note, type: ChordType) -> Bool {
         guard let chord = currentQuizChord else { return false }
-        let correct = root == chord.root && type == chord.type
+        let rootCorrect = root == chord.root
+        let typeCorrect = type == chord.type
+        let combined = rootCorrect && typeCorrect
+
         isQuizAnswered = true
-        isQuizCorrect = correct
-        if correct {
-            quizState.recordCorrect()
-        } else {
-            quizState.recordIncorrect()
+        isQuizCorrect = combined
+        isQuizRootCorrect = rootCorrect
+        isQuizTypeCorrect = typeCorrect
+
+        quizState.record(rootCorrect: rootCorrect, typeCorrect: typeCorrect)
+
+        if var session = currentSession {
+            session.record(rootCorrect: rootCorrect, typeCorrect: typeCorrect)
+            currentSession = session
         }
-        return correct
+
+        savePreferences()
+        return combined
+    }
+
+    public func startSession() {
+        if var active = currentSession, active.combinedTotalCount > 0 {
+            active.endSession()
+            sessions.append(active)
+        }
+        currentSession = QuizSession()
+        quizState.reset()
+        savePreferences()
+    }
+
+    public func endSession() {
+        guard var session = currentSession else { return }
+        session.endSession()
+        if session.combinedTotalCount > 0 {
+            sessions.append(session)
+        }
+        currentSession = nil
+        savePreferences()
     }
 
     public func generateNoteTarget() {
@@ -276,6 +314,16 @@ public final class AppModel {
            let state = try? JSONDecoder().decode(QuizState.self, from: data) {
             quizState = state
         }
+
+        if let data = defaults.data(forKey: "currentSession"),
+           let session = try? JSONDecoder().decode(QuizSession.self, from: data) {
+            currentSession = session
+        }
+
+        if let data = defaults.data(forKey: "quizSessions"),
+           let history = try? JSONDecoder().decode([QuizSession].self, from: data) {
+            sessions = history
+        }
     }
 
     public func didChangeMode() { savePreferences() }
@@ -318,6 +366,16 @@ public final class AppModel {
 
         if let data = try? JSONEncoder().encode(quizState) {
             defaults.set(data, forKey: "quizState")
+        }
+
+        if let data = try? JSONEncoder().encode(currentSession) {
+            defaults.set(data, forKey: "currentSession")
+        } else {
+            defaults.removeObject(forKey: "currentSession")
+        }
+
+        if let data = try? JSONEncoder().encode(sessions) {
+            defaults.set(data, forKey: "quizSessions")
         }
     }
 }

@@ -95,8 +95,8 @@ struct NoteRecognitionView: View {
         var fingers: [Int?] = Array(repeating: nil as Int?, count: 6)
         let barres: [Barre] = []
 
-        if targetFret >= base && targetFret < base + 3 {
-            frets[stringIndex] = targetFret
+        frets[stringIndex] = targetFret
+        if targetFret > 0 {
             fingers[stringIndex] = 1
         }
 
