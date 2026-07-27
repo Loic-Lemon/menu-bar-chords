@@ -154,7 +154,12 @@ public final class AppModel {
     public var positionFilter: NotePositionFilter = .any
     public var currentNoteTarget: Note?
     public var isNoteRevealed = false
+    public var isNoteAnswered = false
+    public var isNoteAnswerCorrect = false
     public var noteTargetFret: Int?
+
+    public var currentNoteSession: NoteSession?
+    public var noteSessions: [NoteSession] = []
 
     public var menuBarIconName = "guitars"
     public var noteNaming: NoteNamingScheme = .sharps
@@ -281,10 +286,50 @@ public final class AppModel {
         }
         noteTargetFret = fret
         isNoteRevealed = false
+        isNoteAnswered = false
+        isNoteAnswerCorrect = false
     }
 
     public func revealNote() {
         isNoteRevealed = true
+    }
+
+    public func recordNoteAnswer(correct: Bool) {
+        isNoteAnswered = true
+        isNoteAnswerCorrect = correct
+        if var session = currentNoteSession {
+            session.recordAnswer(correct: correct)
+            currentNoteSession = session
+        }
+    }
+
+    public func startNoteSession() {
+        if var active = currentNoteSession, active.totalNotes > 0 {
+            active.endSession()
+            noteSessions.append(active)
+        }
+        currentNoteSession = NoteSession()
+        savePreferences()
+    }
+
+    public func endNoteSession() {
+        guard var session = currentNoteSession else { return }
+        session.endSession()
+        if session.totalNotes > 0 {
+            noteSessions.append(session)
+        }
+        currentNoteSession = nil
+        savePreferences()
+    }
+
+    public func deleteNoteSession(id: UUID) {
+        noteSessions.removeAll { $0.id == id }
+        savePreferences()
+    }
+
+    public func deleteQuizSession(id: UUID) {
+        sessions.removeAll { $0.id == id }
+        savePreferences()
     }
 
     private func loadPreferences() {
@@ -323,6 +368,16 @@ public final class AppModel {
         if let data = defaults.data(forKey: "quizSessions"),
            let history = try? JSONDecoder().decode([QuizSession].self, from: data) {
             sessions = history
+        }
+
+        if let data = defaults.data(forKey: "currentNoteSession"),
+           let session = try? JSONDecoder().decode(NoteSession.self, from: data) {
+            currentNoteSession = session
+        }
+
+        if let data = defaults.data(forKey: "noteSessions"),
+           let history = try? JSONDecoder().decode([NoteSession].self, from: data) {
+            noteSessions = history
         }
     }
 
@@ -376,6 +431,16 @@ public final class AppModel {
 
         if let data = try? JSONEncoder().encode(sessions) {
             defaults.set(data, forKey: "quizSessions")
+        }
+
+        if let data = try? JSONEncoder().encode(currentNoteSession) {
+            defaults.set(data, forKey: "currentNoteSession")
+        } else {
+            defaults.removeObject(forKey: "currentNoteSession")
+        }
+
+        if let data = try? JSONEncoder().encode(noteSessions) {
+            defaults.set(data, forKey: "noteSessions")
         }
     }
 }

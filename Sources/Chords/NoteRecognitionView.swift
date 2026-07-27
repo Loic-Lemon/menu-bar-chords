@@ -6,12 +6,12 @@ struct NoteRecognitionView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            stringSelector
+            sessionControls
                 .padding(.top, 4)
 
-            positionFilterPicker
+            stringSelector
 
-            Spacer().frame(height: 8)
+            positionFilterPicker
 
             if let target = model.currentNoteTarget {
                 notePrompt(note: target)
@@ -19,6 +19,11 @@ struct NoteRecognitionView: View {
 
             if model.isNoteRevealed, let target = model.currentNoteTarget {
                 revealFretboard(target: target)
+                if !model.isNoteAnswered {
+                    answerButtons
+                } else {
+                    answerFeedback
+                }
             } else {
                 FretboardView(
                     frets: [nil, nil, nil, nil, nil, nil],
@@ -39,13 +44,73 @@ struct NoteRecognitionView: View {
                     .controlSize(.small)
                 }
 
-                Button("Next Note") {
-                    model.generateNoteTarget()
+                if model.isNoteAnswered {
+                    Button("Next Note") {
+                        model.generateNoteTarget()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private var sessionControls: some View {
+        HStack {
+            if let session = model.currentNoteSession, session.isActive {
+                Text("Session · \(formatDuration(session.duration))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("End") {
+                    model.endNoteSession()
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .foregroundStyle(.red)
+            } else {
+                Spacer()
+                Button("Start Session") {
+                    model.startNoteSession()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
         }
+        .padding(.vertical, 2)
+    }
+
+    private var answerButtons: some View {
+        HStack(spacing: 20) {
+            Button {
+                model.recordNoteAnswer(correct: true)
+            } label: {
+                Label("Got it", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button {
+                model.recordNoteAnswer(correct: false)
+            } label: {
+                Label("Missed", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var answerFeedback: some View {
+        Label(
+            model.isNoteAnswerCorrect ? "Correct!" : "Missed — keep practicing!",
+            systemImage: model.isNoteAnswerCorrect ? "hand.thumbsup.fill" : "figure.run"
+        )
+        .font(.subheadline)
+        .foregroundStyle(model.isNoteAnswerCorrect ? .green : .orange)
+        .padding(.vertical, 4)
     }
 
     private var stringSelector: some View {
@@ -109,6 +174,13 @@ struct NoteRecognitionView: View {
             highlightFret: targetFret,
             highlightString: stringIndex
         )
+    }
+
+    private func formatDuration(_ interval: TimeInterval) -> String {
+        let total = Int(interval)
+        let minutes = total / 60
+        let seconds = total % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 
     private var stringBinding: Binding<GuitarString?> {

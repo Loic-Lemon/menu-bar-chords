@@ -7,7 +7,7 @@ cd "$PROJECT_ROOT"
 echo "🏗️ Building Chords (release)..."
 swift build -c release
 
-BUNDLE_DIR="build/Chords.app"
+BUNDLE_DIR="$HOME/Applications/Chords.app"
 rm -rf "$BUNDLE_DIR"
 
 echo "📦 Assembling $BUNDLE_DIR..."

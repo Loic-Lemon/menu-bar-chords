@@ -53,13 +53,13 @@ swift run
 
 # Or build a release .app bundle
 scripts/bundle.sh
-open build/Chords.app
+open ~/Applications/Chords.app
 
 # Run built-in data-integrity self-test
 swift run Chords --selftest
 ```
 
-The `.app` bundle is self-contained — copy it to `/Applications` and run it.
+The `.app` bundle is built directly into `~/Applications/` — it's discoverable in Spotlight and Raycast automatically.
 
 ## Usage
 

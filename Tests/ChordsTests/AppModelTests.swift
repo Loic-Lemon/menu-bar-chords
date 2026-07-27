@@ -360,4 +360,130 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(model.noteName(.cSharp), "D\u{266D}")
         XCTAssertEqual(model.noteName(.c), "C")
     }
+
+    // MARK: - Note Session
+
+    func testStartNoteSession() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startNoteSession()
+        XCTAssertNotNil(model.currentNoteSession)
+        XCTAssertTrue(model.currentNoteSession!.isActive)
+        XCTAssertEqual(model.currentNoteSession!.totalNotes, 0)
+    }
+
+    func testEndNoteSessionSavesToHistory() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startNoteSession()
+        model.recordNoteAnswer(correct: true)
+        model.recordNoteAnswer(correct: false)
+        model.endNoteSession()
+        XCTAssertNil(model.currentNoteSession)
+        XCTAssertEqual(model.noteSessions.count, 1)
+        XCTAssertEqual(model.noteSessions[0].totalNotes, 2)
+        XCTAssertEqual(model.noteSessions[0].correctCount, 1)
+        XCTAssertEqual(model.noteSessions[0].incorrectCount, 1)
+    }
+
+    func testEndNoteSessionWithZeroAnswers() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startNoteSession()
+        model.endNoteSession()
+        XCTAssertNil(model.currentNoteSession)
+        XCTAssertEqual(model.noteSessions.count, 0)
+    }
+
+    func testStartNoteSessionEndsPrevious() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startNoteSession()
+        model.recordNoteAnswer(correct: true)
+        model.startNoteSession()
+        XCTAssertEqual(model.noteSessions.count, 1)
+        XCTAssertNotNil(model.currentNoteSession)
+        XCTAssertEqual(model.currentNoteSession!.totalNotes, 0)
+    }
+
+    func testRecordNoteAnswerCorrect() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startNoteSession()
+        model.recordNoteAnswer(correct: true)
+        XCTAssertEqual(model.currentNoteSession?.totalNotes, 1)
+        XCTAssertEqual(model.currentNoteSession?.correctCount, 1)
+        XCTAssertEqual(model.currentNoteSession?.incorrectCount, 0)
+        XCTAssertTrue(model.isNoteAnswered)
+        XCTAssertTrue(model.isNoteAnswerCorrect)
+    }
+
+    func testRecordNoteAnswerIncorrect() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startNoteSession()
+        model.recordNoteAnswer(correct: false)
+        XCTAssertEqual(model.currentNoteSession?.totalNotes, 1)
+        XCTAssertEqual(model.currentNoteSession?.correctCount, 0)
+        XCTAssertEqual(model.currentNoteSession?.incorrectCount, 1)
+        XCTAssertTrue(model.isNoteAnswered)
+        XCTAssertFalse(model.isNoteAnswerCorrect)
+    }
+
+    func testRecordNoteAnswerWithoutSession() {
+        let model = AppModel(defaults: makeDefaults())
+        model.recordNoteAnswer(correct: true)
+        XCTAssertTrue(model.isNoteAnswered)
+        XCTAssertTrue(model.isNoteAnswerCorrect)
+    }
+
+    func testDeleteNoteSession() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startNoteSession()
+        model.recordNoteAnswer(correct: true)
+        model.endNoteSession()
+        let firstId = model.noteSessions[0].id
+        model.startNoteSession()
+        model.recordNoteAnswer(correct: false)
+        model.endNoteSession()
+        XCTAssertEqual(model.noteSessions.count, 2)
+        model.deleteNoteSession(id: firstId)
+        XCTAssertEqual(model.noteSessions.count, 1)
+        XCTAssertFalse(model.noteSessions.contains { $0.id == firstId })
+    }
+
+    func testDeleteQuizSession() {
+        let model = AppModel(defaults: makeDefaults())
+        model.startSession()
+        guard let chord = model.currentQuizChord else { return XCTFail("no chord") }
+        model.submitQuizGuess(root: chord.root, type: chord.type)
+        model.endSession()
+        let firstId = model.sessions[0].id
+        model.startSession()
+        model.submitQuizGuess(root: chord.root, type: chord.type)
+        model.endSession()
+        XCTAssertEqual(model.sessions.count, 2)
+        model.deleteQuizSession(id: firstId)
+        XCTAssertEqual(model.sessions.count, 1)
+        XCTAssertFalse(model.sessions.contains { $0.id == firstId })
+    }
+
+    func testNoteSessionPersistence() {
+        let defaults = makeDefaults()
+        let model = AppModel(defaults: defaults)
+        model.startNoteSession()
+        model.recordNoteAnswer(correct: true)
+        model.recordNoteAnswer(correct: false)
+        model.recordNoteAnswer(correct: true)
+        model.endNoteSession()
+        let reloaded = AppModel(defaults: defaults)
+        XCTAssertNil(reloaded.currentNoteSession)
+        XCTAssertEqual(reloaded.noteSessions.count, 1)
+        XCTAssertEqual(reloaded.noteSessions[0].totalNotes, 3)
+        XCTAssertEqual(reloaded.noteSessions[0].correctCount, 2)
+        XCTAssertEqual(reloaded.noteSessions[0].incorrectCount, 1)
+    }
+
+    func testNoteSessionGenerateResetsAnswerState() {
+        let model = AppModel(defaults: makeDefaults())
+        model.generateNoteTarget()
+        model.revealNote()
+        model.generateNoteTarget()
+        XCTAssertFalse(model.isNoteAnswered)
+        XCTAssertFalse(model.isNoteAnswerCorrect)
+    }
 }
